@@ -198,7 +198,7 @@ class NodeTrafficLoader(object):
                  MergeIndex=1,
                  MergeWay="sum",
                  remove=True,**kwargs):
-
+        # node_traffic (16416, 288) -> (16416, 288, 2)
         self.dataset = DataSet(dataset, MergeIndex, MergeWay, city,data_dir=data_dir)
 
         self.loader_id = "{}_{}_{}_{}_{}_{}_{}_N".format(data_range, train_data_length, test_ratio, closeness_len, period_len, trend_len, self.dataset.time_fitness)
@@ -226,7 +226,13 @@ class NodeTrafficLoader(object):
 
         # traffic feature
         if remove:
-            self.traffic_data_index = np.where(np.mean(self.dataset.node_traffic, axis=0) * self.daily_slots > 1)[0]
+            if len(self.dataset.node_traffic.shape) == 2:
+                self.traffic_data_index = np.where(np.mean(self.dataset.node_traffic, axis=0) * self.daily_slots > 1)[0]
+            elif len(self.dataset.node_traffic.shape) == 3:
+                self.traffic_tmp = np.mean(self.dataset.node_traffic, axis=0)
+                self.traffic_data_index = np.where(np.mean(self.traffic_tmp, axis=1) * self.daily_slots > 1)[0]
+            else:
+                raise ValueError("self.dataset.node_traffic shape is wrong.")
         else:
             self.traffic_data_index = np.arange(self.dataset.node_traffic.shape[1])
 

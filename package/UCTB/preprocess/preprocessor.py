@@ -121,6 +121,19 @@ class ST_MoveSample(object):
 
         y = np.transpose(y, [0] + list(range(2, len(y.shape))) + [1])
 
+        # if there have multi type of flow
+        if len(y.shape) == 4:
+            if self._c_t and self._c_t > 0:
+                closeness = np.reshape(closeness, list(closeness.shape)[:-1])
+                closeness = np.transpose(closeness, [0, 1, 3, 2])
+            if self._p_t and self._p_t > 0:
+                period = np.reshape(period, list(period.shape)[:-1])
+                period = np.transpose(period, [0, 1, 3, 2])
+            if self._t_t and self._t_t > 0:
+                trend = np.reshape(trend, list(trend.shape)[:-1])
+                trend = np.transpose(trend, [0, 1, 3, 2])
+            y = np.reshape(y, list(y.shape)[:-1])
+
         return closeness, period, trend, y
 
 

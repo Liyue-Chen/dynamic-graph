@@ -53,6 +53,8 @@ class STMeta(BaseModel):
 
     def __init__(self,
                  num_node,
+                 num_flow,
+                 dynamic_graph_flag,
                  external_dim,
                  closeness_len,
                  period_len,
@@ -90,6 +92,8 @@ class STMeta(BaseModel):
         super(STMeta, self).__init__(code_version=code_version, model_dir=model_dir, gpu_device=gpu_device)
 
         self._num_node = num_node
+        self._num_flow = num_flow
+        self._dynamic_graph_flag = dynamic_graph_flag
         self._gcn_k = gcn_k
         self._gcn_layer = gcn_layers
         self._graph_merge_gal_units = graph_merge_gal_units
@@ -114,32 +118,38 @@ class STMeta(BaseModel):
     
     def build(self, init_vars=True, max_to_keep=5):
         with self._graph.as_default():
-
             temporal_features = []
 
             if self._closeness_len is not None and self._closeness_len > 0:
-                closeness_feature = tf.placeholder(tf.float32, [None, None, self._closeness_len, 1],
+                closeness_feature = tf.placeholder(tf.float32, [None, None, self._closeness_len, self._num_flow],
                                                    name='closeness_feature')
                 self._input['closeness_feature'] = closeness_feature.name
                 temporal_features.append([self._closeness_len, closeness_feature, 'closeness_feature'])
 
             if self._period_len is not None and self._period_len > 0:
-                period_feature = tf.placeholder(tf.float32, [None, None, self._period_len, 1],
+                period_feature = tf.placeholder(tf.float32, [None, None, self._period_len, self._num_flow],
                                                 name='period_feature')
                 self._input['period_feature'] = period_feature.name
                 temporal_features.append([self._period_len, period_feature, 'period_feature'])
 
             if self._trend_len is not None and self._trend_len > 0:
-                trend_feature = tf.placeholder(tf.float32, [None, None, self._trend_len, 1],
+                trend_feature = tf.placeholder(tf.float32, [None, None, self._trend_len, self._num_flow],
                                                name='trend_feature')
                 self._input['trend_feature'] = trend_feature.name
                 temporal_features.append([self._trend_len, trend_feature, 'trend_feature'])
 
             if len(temporal_features) > 0:
-                target = tf.placeholder(tf.float32, [None, None, 1], name='target')
+                target = tf.placeholder(tf.float32, [None, None, self._num_flow], name='target')
+                
+                # shape is [batch, num_node, num_node, closeness_len]
+                closeness_laplacian = tf.placeholder(
+                    tf.float32, [None, None, self._closeness_len], name='closeness_laplacian')
+                self._input['closeness_laplacian'] = closeness_laplacian.name
+        
                 laplace_matrix = tf.placeholder(tf.float32, [self._num_graph, None, None], name='laplace_matrix')
-                self._input['target'] = target.name
                 self._input['laplace_matrix'] = laplace_matrix.name
+
+                self._input['target'] = target.name
             else:
                 raise ValueError('closeness_len, period_len, trend_len cannot all be zero')
 
@@ -155,13 +165,27 @@ class STMeta(BaseModel):
 
                         if self._st_method == 'GCLSTM':
 
-                            multi_layer_cell = tf.keras.layers.StackedRNNCells(
-                                [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
-                                            laplacian_matrix=laplace_matrix[graph_index],
-                                            gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
-                                 for _ in range(self._gclstm_layers)])
+                            if self._dynamic_graph_flag:
+                                # dynamic graph
+                                # laplace_matrix with shape [num_node, num_node, time_step]
+                                multi_layer_cell = tf.keras.layers.StackedRNNCells(
+                                    [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
+                                                laplacian_matrix=closeness_laplacian[0,:,:,0],
+                                                dynamic_laplacian = closeness_laplacian,
+                                                time_step = time_step,
+                                                gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
+                                     for _ in range(self._gclstm_layers)])
 
-                            outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(target_tensor, [-1, time_step, 1]))
+                            else:
+                                # static graph
+                                # laplace_matrix with shape [num_graph, num_node, num_node]
+                                multi_layer_cell = tf.keras.layers.StackedRNNCells(
+                                    [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
+                                                laplacian_matrix=laplace_matrix[graph_index],
+                                                gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
+                                     for _ in range(self._gclstm_layers)])
+
+                            outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(target_tensor, [-1, time_step, self._num_flow]))
 
                             st_outputs = tf.reshape(outputs, [-1, 1, self._num_hidden_unit])
 
@@ -262,7 +286,7 @@ class STMeta(BaseModel):
                                                   bias_regularizer=tf.keras.regularizers.l2(0.01)
                                                   )(dense_output0)
 
-            pre_output = tf.keras.layers.Dense(units=1,
+            pre_output = tf.keras.layers.Dense(units=self._num_flow,
                                                activation=tf.nn.tanh,
                                                use_bias=True,
                                                kernel_initializer='glorot_uniform',
@@ -271,7 +295,7 @@ class STMeta(BaseModel):
                                                bias_regularizer=tf.keras.regularizers.l2(0.01)
                                                )(dense_output1)
 
-            prediction = tf.reshape(pre_output, [-1, self._num_node, 1], name='prediction')
+            prediction = tf.reshape(pre_output, [-1, self._num_node, self._num_flow], name='prediction')
 
             loss_pre = tf.sqrt(tf.reduce_mean(tf.square(target - prediction)), name='loss')
 
@@ -289,14 +313,16 @@ class STMeta(BaseModel):
     # Define your '_get_feed_dict function‘, map your input to the tf-model
     def _get_feed_dict(self,
                        laplace_matrix,
+                       closeness_laplacian,
                        closeness_feature=None,
                        period_feature=None,
                        trend_feature=None,
                        target=None,
                        external_feature=None):
-        feed_dict = {
-            'laplace_matrix': laplace_matrix,
-        }
+        feed_dict = {}
+        feed_dict['closeness_laplacian'] = closeness_laplacian
+        feed_dict['laplace_matrix'] = laplace_matrix
+
         if target is not None:
             feed_dict['target'] = target
         if self._external_dim is not None and self._external_dim > 0:

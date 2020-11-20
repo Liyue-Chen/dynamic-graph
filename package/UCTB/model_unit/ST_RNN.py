@@ -35,7 +35,7 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         kwargs: other parameters supported by LSTMCell, such as activation, kernel_initializer ... and so on.
     """
 
-    def __init__(self, units, num_nodes, laplacian_matrix, gcn_k=1, gcn_l=1, **kwargs):
+    def __init__(self, units, num_nodes, laplacian_matrix, dynamic_laplacian=None, time_step=None, gcn_k=1, gcn_l=1, **kwargs):
 
         super().__init__(units, **kwargs)
 
@@ -44,6 +44,12 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         self._gcn_k = gcn_k
         self._gcn_l = gcn_l
         self._laplacian_matrix = laplacian_matrix
+        # if dynamic_laplacian is True. the laplacian_matrix is [num_node, num_node, time_step]
+        # else dynamic_laplacian is False. the laplacian_matrix is [num_node, num_node]
+        # dynamic_laplacian is bool type and if it was true, the self._time_step is int
+        self._dynamic_laplacian = dynamic_laplacian
+        self._time_step = time_step
+        self._current_step = 0
 
     @tf_utils.shape_type_conversion
     def build(self, input_shape):
@@ -70,7 +76,10 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         elif k > 1:
             return math_ops.matmul(2 * self._laplacian_matrix, tk1) - tk2
 
-    def call(self, inputs, states, training=None):
+    def update_graph(self, laplacian_matrix):
+        self._laplacian_matrix = laplacian_matrix
+
+    def call(self, inputs, states, training=None, laplacian_matrix=None):
 
         if 0 < self.dropout < 1 and self._dropout_mask is None:
             self._dropout_mask = _generate_dropout_mask(
@@ -85,6 +94,11 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
                 self.recurrent_dropout,
                 training=training,
                 count=4)
+        # update graph if it was dynamic graph
+        if self._dynamic_laplacian is not None:
+            self.update_graph(self._dynamic_laplacian[:,:,self._current_step])
+            self._current_step += 1
+            self._current_step %= self._time_step
 
         input_dim = inputs.get_shape()[-1].value
 

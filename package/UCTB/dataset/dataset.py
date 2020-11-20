@@ -78,11 +78,11 @@ class DataSet(object):
         # merge data
         self.data['TimeFitness']  = int(self.data['TimeFitness']*self.MergeIndex)
         if len(self.data['Node']['TrafficNode']) > 0:
-            self.data['Node']['TrafficNode'] = self.merge_data(self.data['Node']['TrafficNode'],"node")
+            self.data['Node']['TrafficNode'] = self.merge_data(self.data['Node']['TrafficNode'])
         if len(self.data['Grid']['TrafficGrid']) > 0:
-            self.data['Grid']['TrafficGrid'] = self.merge_data(self.data['Grid']['TrafficGrid'],"grid")
+            self.data['Grid']['TrafficGrid'] = self.merge_data(self.data['Grid']['TrafficGrid'])
         if len(self.data['ExternalFeature']['Weather']) > 0:
-            self.data['ExternalFeature']['Weather'] = self.merge_data(self.data['ExternalFeature']['Weather'],"node")
+            self.data['ExternalFeature']['Weather'] = self.merge_data(self.data['ExternalFeature']['Weather'])
 
         self.time_range = self.data['TimeRange']
         self.time_fitness = self.data['TimeFitness']
@@ -96,7 +96,7 @@ class DataSet(object):
 
         self.external_feature_weather = self.data['ExternalFeature']['Weather']
 
-    def merge_data(self,data,dataType):
+    def merge_data(self,data):
         if self.MergeWay == "sum":
             func = np.sum
         elif self.MergeWay == "average":
@@ -107,13 +107,10 @@ class DataSet(object):
             raise ValueError("Parameter MerWay should be sum or average")
         if data.shape[0] % self.MergeIndex is not 0:
             raise ValueError("time_slots % MergeIndex should be zero")
-        
-        if dataType.lower() == "node":
-            new = np.zeros((data.shape[0]//self.MergeIndex,data.shape[1]),dtype=np.float32)
-            for new_ind,ind in enumerate(range(0,data.shape[0],self.MergeIndex)):
-                    new[new_ind,:] = func(data[ind:ind+self.MergeIndex,:],axis=0)
-        elif dataType.lower() == "grid":
-            new = np.zeros((data.shape[0]//self.MergeIndex,data.shape[1],data.shape[2]),dtype=np.float32)
-            for new_ind,ind in enumerate(range(0,data.shape[0],self.MergeIndex)):
-                    new[new_ind,:,:] = func(data[ind:ind+self.MergeIndex,:,:],axis=0)
+
+        new_shape = list(data.shape)
+        new_shape[0] = data.shape[0]//self.MergeIndex
+        new = np.zeros(new_shape, dtype=np.float32)
+        for new_ind, ind in enumerate(range(0, data.shape[0], self.MergeIndex)):
+            new[new_ind] = func(data[ind:ind+self.MergeIndex], axis=0)
         return new

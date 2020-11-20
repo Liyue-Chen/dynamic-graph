@@ -92,6 +92,8 @@ else:
 
 
 STMeta_obj = STMeta(num_node=data_loader.station_number,
+                    num_flow=data_loader.traffic_data.shape[-1] if len(data_loader.traffic_data.shape)== 3 else 1,
+                    dynamic_graph_flag=False,
                     num_graph=graph_obj.LM.shape[0],
                     external_dim=data_loader.external_dim,
                     closeness_len=args['closeness_len'],
@@ -134,6 +136,7 @@ if args['train']:
                    period_feature=data_loader.train_period,
                    trend_feature=data_loader.train_trend,
                    laplace_matrix=graph_obj.LM,
+                   closeness_laplacian=graph_obj.dynamic,
                    target=data_loader.train_y,
                    external_feature=data_loader.train_ef,
                    sequence_length=data_loader.train_sequence_len,
