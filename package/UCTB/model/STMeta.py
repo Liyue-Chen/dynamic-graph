@@ -143,7 +143,7 @@ class STMeta(BaseModel):
                 
                 # shape is [batch, num_node, num_node, closeness_len]
                 closeness_laplacian = tf.placeholder(
-                    tf.float32, [None, None, self._closeness_len], name='closeness_laplacian')
+                    tf.float32, [None, None, None, self._closeness_len], name='closeness_laplacian')
                 self._input['closeness_laplacian'] = closeness_laplacian.name
         
                 laplace_matrix = tf.placeholder(tf.float32, [self._num_graph, None, None], name='laplace_matrix')
@@ -166,17 +166,20 @@ class STMeta(BaseModel):
                         if self._st_method == 'GCLSTM':
 
                             if self._dynamic_graph_flag:
+                                print("********* using dynamic graph *********")
                                 # dynamic graph
-                                # laplace_matrix with shape [num_node, num_node, time_step]
+                                # closeness_laplacian with shape [num_node, num_node, time_step]
                                 multi_layer_cell = tf.keras.layers.StackedRNNCells(
                                     [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
                                                 laplacian_matrix=closeness_laplacian[0,:,:,0],
+                                                dynamic_flag=True,
                                                 dynamic_laplacian = closeness_laplacian,
                                                 time_step = time_step,
                                                 gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
                                      for _ in range(self._gclstm_layers)])
 
                             else:
+                                print("********* using static graph *********")
                                 # static graph
                                 # laplace_matrix with shape [num_graph, num_node, num_node]
                                 multi_layer_cell = tf.keras.layers.StackedRNNCells(
@@ -313,16 +316,16 @@ class STMeta(BaseModel):
     # Define your '_get_feed_dict function‘, map your input to the tf-model
     def _get_feed_dict(self,
                        laplace_matrix,
-                       closeness_laplacian,
+                       closeness_laplacian=None,
                        closeness_feature=None,
                        period_feature=None,
                        trend_feature=None,
                        target=None,
                        external_feature=None):
         feed_dict = {}
-        feed_dict['closeness_laplacian'] = closeness_laplacian
         feed_dict['laplace_matrix'] = laplace_matrix
-
+        if self._dynamic_graph_flag:
+            feed_dict['closeness_laplacian'] = closeness_laplacian
         if target is not None:
             feed_dict['target'] = target
         if self._external_dim is not None and self._external_dim > 0:

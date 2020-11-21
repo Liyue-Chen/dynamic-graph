@@ -46,11 +46,15 @@ class GraphGenerator():
 
         self.dataset = data_loader.dataset
         self.train_data = data_loader.train_data
-        self.train_sequence_len = len(data_loader.train_closeness)
-        self.test_sequence_len = len(data_loader.test_closeness)
+        self.train_closeness_len = len(data_loader.train_closeness)
+        self.test_closeness_len = len(data_loader.test_closeness)
         self.traffic_data_index = data_loader.traffic_data_index
         self.train_test_ratio = data_loader.train_test_ratio
         self.daily_slots = 24 * 60 / self.dataset.time_fitness
+
+        self.dynamic_flag = False
+        self.train_dynamic = []
+        self.test_dynamic = []
 
         # build_graph
         for graph_name in graph.split('-'):
@@ -61,15 +65,20 @@ class GraphGenerator():
                 if LM is not None:
                     self.LM.append(LM)
             else:
-                        
-                self.dynamic = self.adjacent_to_laplacian(self.dataset.data.get(
-                    'contribute_data').get('graph_static_calendar'))
-                self.dynamic = self.dynamic[self.traffic_data_index]
-                self.dynamic= self.dynamic[:, self.traffic_data_index]
-                self.dynamic = np.reshape(self.dynamic,[1] + list(self.dynamic.shape) + [1]))
-                self.dynamic = np.tile(self.dynamic,[self.train_sequence_len,1,1,])
+                self.dynamic_flag = True
+                dynamic = self.adjacent_to_laplacian(self.dataset.data.get(
+                    'contribute_data').get('graph_static_calendar')).astype(np.int16)
+                dynamic = ((0 < dynamic) & (dynamic <= 300)).astype(np.int16)
+                dynamic = self.adjacent_to_laplacian(dynamic)
+                
+                dynamic = dynamic[self.traffic_data_index]
+                dynamic = dynamic[:, self.traffic_data_index]
+                dynamic = np.reshape(dynamic, [1] + list(dynamic.shape) + [1])
+                self.train_dynamic = np.tile(
+                    dynamic, [self.train_closeness_len, 1, 1, data_loader.closeness_len])
+                self.test_dynamic = np.tile(
+                    dynamic, [self.test_closeness_len, 1, 1, data_loader.closeness_len])
 
-        
         self.AM = np.array(self.AM, dtype=np.float32)
         self.LM = np.array(self.LM, dtype=np.float32)
         # print (self.LM.shape[:])

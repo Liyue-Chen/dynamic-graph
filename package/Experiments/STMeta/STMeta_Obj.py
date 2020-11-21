@@ -74,6 +74,9 @@ graph_obj = GraphGenerator(graph=args['graph'],
                            threshold_correlation=args['threshold_correlation'],
                            threshold_interaction=args['threshold_interaction'])
 
+train_closeness_laplacian, val_closeness_laplacian = SplitData.split_data(graph_obj.train_dynamic, [0.9, 0.1])
+
+
 print("TimeFitness", data_loader.dataset.time_fitness)
 print("TimeRange", data_loader.dataset.time_range)
 
@@ -93,8 +96,8 @@ else:
 
 STMeta_obj = STMeta(num_node=data_loader.station_number,
                     num_flow=data_loader.traffic_data.shape[-1] if len(data_loader.traffic_data.shape)== 3 else 1,
-                    dynamic_graph_flag=False,
-                    num_graph=graph_obj.LM.shape[0],
+                    dynamic_graph_flag=True if graph_obj.dynamic_flag else False,
+                    num_graph=1 if graph_obj.dynamic_flag else graph_obj.LM.shape[0],
                     external_dim=data_loader.external_dim,
                     closeness_len=args['closeness_len'],
                     period_len=args['period_len'],
@@ -129,14 +132,17 @@ STMeta_obj.build()
 print(args['dataset'], args['city'], code_version)
 print('Number of trainable variables', STMeta_obj.trainable_vars)
 print('Number of training samples', data_loader.train_sequence_len)
+print("Laplace_matrix shape is",graph_obj.LM.shape)
+print("Closeness_laplacian shape is",len(graph_obj.train_dynamic))
 
+exit()
 # # Training
 if args['train']:
     STMeta_obj.fit(closeness_feature=data_loader.train_closeness,
                    period_feature=data_loader.train_period,
                    trend_feature=data_loader.train_trend,
-                   laplace_matrix=graph_obj.LM,
-                   closeness_laplacian=graph_obj.dynamic,
+                   laplace_matrix=graph_obj.train_dynamic[:1,:,:,0] if graph_obj.dynamic_flag else graph_obj.LM ,
+                   closeness_laplacian=graph_obj.train_dynamic,
                    target=data_loader.train_y,
                    external_feature=data_loader.train_ef,
                    sequence_length=data_loader.train_sequence_len,
@@ -158,7 +164,8 @@ STMeta_obj.load(code_version)
 prediction = STMeta_obj.predict(closeness_feature=val_closeness,
                                 period_feature=val_period,
                                 trend_feature=val_trend,
-                                laplace_matrix=graph_obj.LM,
+                                laplace_matrix=graph_obj.train_dynamic[:1,:,:,0] if graph_obj.dynamic_flag else graph_obj.LM,
+                                closeness_laplacian=val_closeness_laplacian,
                                 target=val_y,
                                 external_feature=val_ef,
                                 output_names=('prediction', ),
@@ -171,7 +178,8 @@ val_prediction = prediction['prediction']
 prediction = STMeta_obj.predict(closeness_feature=data_loader.test_closeness,
                                 period_feature=data_loader.test_period,
                                 trend_feature=data_loader.test_trend,
-                                laplace_matrix=graph_obj.LM,
+                                laplace_matrix=graph_obj.test_dynamic[:1,:,:,0] if graph_obj.dynamic_flag else graph_obj.LM,
+                                closeness_laplacian=graph_obj.test_dynamic,
                                 target=data_loader.test_y,
                                 external_feature=data_loader.test_ef,
                                 output_names=('prediction', ),

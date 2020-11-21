@@ -3,12 +3,12 @@ dataset: Metro
 city: Shanghai_IOFLOW
 
 closeness_len: 6
-period_len: 7
-trend_len: 4
+period_len: 0
+trend_len: 0
 
-graph: Distance-Correlation-Line
+graph: Distance-Line
 
-data_range: all
+data_range: [0,2]
 train_data_length: all
 
 threshold_distance: 5000

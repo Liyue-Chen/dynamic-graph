@@ -6,13 +6,7 @@ import os
 ########### Metro_Shanghai_IOFLOW ###########
 
 # os.system('python STMeta_Obj.py -m STMeta_v1.model.yml -d metro_shanghaiDynamic.data.yml '
-#           '-p graph:Distance-Correlation-Line,MergeIndex:1')
-
-# os.system('python STMeta_Obj.py -m STMeta_v1.model.yml -d metro_shanghaiDynamic.data.yml '
-#           '-p graph:Distance-Correlation-Line,MergeIndex:3')
-
-# os.system('python STMeta_Obj.py -m STMeta_v1.model.yml -d metro_shanghaiDynamic.data.yml '
-#           '-p graph:Distance-Correlation-Line,MergeIndex:6')
+#           '-p graph:Distance,MergeIndex:1,mark:D_Graph')
 
 os.system('python STMeta_Obj.py -m STMeta_v1.model.yml -d metro_shanghaiDynamic.data.yml '
-          '-p graph:Distance-Line,MergeIndex:12')
+          '-p graph:static,MergeIndex:1,mark:static_Graph')

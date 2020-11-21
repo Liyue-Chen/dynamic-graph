@@ -35,7 +35,7 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         kwargs: other parameters supported by LSTMCell, such as activation, kernel_initializer ... and so on.
     """
 
-    def __init__(self, units, num_nodes, laplacian_matrix, dynamic_laplacian=None, time_step=None, gcn_k=1, gcn_l=1, **kwargs):
+    def __init__(self, units, num_nodes, laplacian_matrix, dynamic_flag=False, dynamic_laplacian=None, time_step=None, gcn_k=1, gcn_l=1, **kwargs):
 
         super().__init__(units, **kwargs)
 
@@ -44,9 +44,9 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         self._gcn_k = gcn_k
         self._gcn_l = gcn_l
         self._laplacian_matrix = laplacian_matrix
-        # if dynamic_laplacian is True. the laplacian_matrix is [num_node, num_node, time_step]
-        # else dynamic_laplacian is False. the laplacian_matrix is [num_node, num_node]
-        # dynamic_laplacian is bool type and if it was true, the self._time_step is int
+        # if dynamic_laplacian is not None. the dynamic_laplacian is [batch, num_node, num_node, time_step]
+        # the laplacian_matrix is [num_node, num_node]
+        self._dynamic_flag = dynamic_flag
         self._dynamic_laplacian = dynamic_laplacian
         self._time_step = time_step
         self._current_step = 0
@@ -95,10 +95,12 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
                 training=training,
                 count=4)
         # update graph if it was dynamic graph
-        if self._dynamic_laplacian is not None:
-            self.update_graph(self._dynamic_laplacian[:,:,self._current_step])
-            self._current_step += 1
-            self._current_step %= self._time_step
+        if self._dynamic_flag :
+            print("****************** current step is : ******************", self._current_step)
+            self.update_graph(tf.squeeze(self._dynamic_laplacian[:,:,self._current_step]))
+            self._current_step =(1 + self._current_step) % self._time_step
+        else:
+            print("*****************static graph in ST_RNN*****************")
 
         input_dim = inputs.get_shape()[-1].value
 
