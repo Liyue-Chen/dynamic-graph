@@ -135,7 +135,6 @@ print('Number of training samples', data_loader.train_sequence_len)
 print("Laplace_matrix shape is",graph_obj.LM.shape)
 print("Closeness_laplacian shape is",len(graph_obj.train_dynamic))
 
-exit()
 # # Training
 if args['train']:
     STMeta_obj.fit(closeness_feature=data_loader.train_closeness,

@@ -139,8 +139,6 @@ class STMeta(BaseModel):
                 temporal_features.append([self._trend_len, trend_feature, 'trend_feature'])
 
             if len(temporal_features) > 0:
-                target = tf.placeholder(tf.float32, [None, None, self._num_flow], name='target')
-                
                 # shape is [batch, num_node, num_node, closeness_len]
                 closeness_laplacian = tf.placeholder(
                     tf.float32, [None, None, None, self._closeness_len], name='closeness_laplacian')
@@ -149,6 +147,7 @@ class STMeta(BaseModel):
                 laplace_matrix = tf.placeholder(tf.float32, [self._num_graph, None, None], name='laplace_matrix')
                 self._input['laplace_matrix'] = laplace_matrix.name
 
+                target = tf.placeholder(tf.float32, [None, None, self._num_flow], name='target')
                 self._input['target'] = target.name
             else:
                 raise ValueError('closeness_len, period_len, trend_len cannot all be zero')
@@ -173,10 +172,14 @@ class STMeta(BaseModel):
                                     [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
                                                 laplacian_matrix=closeness_laplacian[0,:,:,0],
                                                 dynamic_flag=True,
-                                                dynamic_laplacian = closeness_laplacian,
-                                                time_step = time_step,
                                                 gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
                                      for _ in range(self._gclstm_layers)])
+
+                                for step in range(time_step):
+                                    outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(
+                                        target_tensor[:, :, step, 1], [-1, 1, self._num_flow]), laplace_matrix=closeness_laplacian[:, :, :, step])
+
+
 
                             else:
                                 print("********* using static graph *********")
@@ -188,7 +191,7 @@ class STMeta(BaseModel):
                                                 gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
                                      for _ in range(self._gclstm_layers)])
 
-                            outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(target_tensor, [-1, time_step, self._num_flow]))
+                                outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(target_tensor, [-1, time_step, self._num_flow]))
 
                             st_outputs = tf.reshape(outputs, [-1, 1, self._num_hidden_unit])
 

@@ -5,6 +5,7 @@ from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import array_ops, linalg_ops, math_ops
 
+import traceback
 
 def _generate_dropout_mask(ones, rate, training=None, count=1):
     def dropped_inputs():
@@ -35,7 +36,7 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         kwargs: other parameters supported by LSTMCell, such as activation, kernel_initializer ... and so on.
     """
 
-    def __init__(self, units, num_nodes, laplacian_matrix, dynamic_flag=False, dynamic_laplacian=None, time_step=None, gcn_k=1, gcn_l=1, **kwargs):
+    def __init__(self, units, num_nodes, laplacian_matrix, dynamic_flag=False, gcn_k=1, gcn_l=1, **kwargs):
 
         super().__init__(units, **kwargs)
 
@@ -47,9 +48,9 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         # if dynamic_laplacian is not None. the dynamic_laplacian is [batch, num_node, num_node, time_step]
         # the laplacian_matrix is [num_node, num_node]
         self._dynamic_flag = dynamic_flag
-        self._dynamic_laplacian = dynamic_laplacian
-        self._time_step = time_step
-        self._current_step = 0
+        
+        #self._time_step = time_step
+        #self._current_step = 0
 
     @tf_utils.shape_type_conversion
     def build(self, input_shape):
@@ -79,7 +80,8 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
     def update_graph(self, laplacian_matrix):
         self._laplacian_matrix = laplacian_matrix
 
-    def call(self, inputs, states, training=None, laplacian_matrix=None):
+    def call(self, inputs, states, laplacian_matrix, training=None):
+        # traceback.print_stack()
 
         if 0 < self.dropout < 1 and self._dropout_mask is None:
             self._dropout_mask = _generate_dropout_mask(
@@ -96,9 +98,8 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
                 count=4)
         # update graph if it was dynamic graph
         if self._dynamic_flag :
-            print("****************** current step is : ******************", self._current_step)
-            self.update_graph(tf.squeeze(self._dynamic_laplacian[:,:,self._current_step]))
-            self._current_step =(1 + self._current_step) % self._time_step
+            print("****************** dynamic graph in ST_RNN : ******************")
+            self.update_graph(tf.squeeze(laplacian_matrix))
         else:
             print("*****************static graph in ST_RNN*****************")
 
