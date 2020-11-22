@@ -44,10 +44,11 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
         self._num_node = num_nodes
         self._gcn_k = gcn_k
         self._gcn_l = gcn_l
-        self._laplacian_matrix = laplacian_matrix
+        self._laplacian_matrix = tf.squeeze(laplacian_matrix)
         # if dynamic_laplacian is not None. the dynamic_laplacian is [batch, num_node, num_node, time_step]
         # the laplacian_matrix is [num_node, num_node]
         self._dynamic_flag = dynamic_flag
+        
         
         #self._time_step = time_step
         #self._current_step = 0
@@ -80,7 +81,7 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
     def update_graph(self, laplacian_matrix):
         self._laplacian_matrix = laplacian_matrix
 
-    def call(self, inputs, states, laplacian_matrix, training=None):
+    def call(self, inputs, states, training=None):
         # traceback.print_stack()
 
         if 0 < self.dropout < 1 and self._dropout_mask is None:
@@ -97,11 +98,11 @@ class GCLSTMCell(tf.keras.layers.LSTMCell):
                 training=training,
                 count=4)
         # update graph if it was dynamic graph
-        if self._dynamic_flag :
-            print("****************** dynamic graph in ST_RNN : ******************")
-            self.update_graph(tf.squeeze(laplacian_matrix))
-        else:
-            print("*****************static graph in ST_RNN*****************")
+        # if self._dynamic_flag :
+        #     print("****************** dynamic graph in ST_RNN : ******************")
+        #     self.update_graph(tf.squeeze(laplacian_matrix))
+        # else:
+        #     print("*****************static graph in ST_RNN*****************")
 
         input_dim = inputs.get_shape()[-1].value
 

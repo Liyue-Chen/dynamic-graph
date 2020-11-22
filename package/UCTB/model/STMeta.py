@@ -168,16 +168,33 @@ class STMeta(BaseModel):
                                 print("********* using dynamic graph *********")
                                 # dynamic graph
                                 # closeness_laplacian with shape [num_node, num_node, time_step]
-                                multi_layer_cell = tf.keras.layers.StackedRNNCells(
-                                    [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
-                                                laplacian_matrix=closeness_laplacian[0,:,:,0],
-                                                dynamic_flag=True,
-                                                gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
-                                     for _ in range(self._gclstm_layers)])
+                                gclstm_ls = [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
+                                                        laplacian_matrix=closeness_laplacian[:, :, :, 0],
+                                                        gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
+                                             for _ in range(self._gclstm_layers)]
+                                multi_layer_cell = tf.keras.layers.StackedRNNCells(gclstm_ls)
 
                                 for step in range(time_step):
+                                    for layers_index in range(self._gclstm_layers):
+                                        gclstm_ls[layers_index]._laplacian_matrix = tf.squeeze(closeness_laplacian[:,:,:,step])
                                     outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(
-                                        target_tensor[:, :, step, 1], [-1, 1, self._num_flow]), laplace_matrix=closeness_laplacian[:, :, :, step])
+                                    target_tensor[:, :, step, :], [-1, 1, self._num_flow]))
+
+
+                                        # multi_layer_cell = tf.keras.layers.StackedRNNCells(
+                                        #     [GCLSTMCell(units=self._num_hidden_unit, num_nodes=self._num_node,
+                                        #                 laplacian_matrix=closeness_laplacian[:,:,:,step],
+                                        #                 dynamic_flag=True,
+                                        #                 gcn_k=self._gcn_k, gcn_l=self._gcn_layer)
+                                        #     for _ in range(self._gclstm_layers)])
+                                        # outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(
+                                        # target_tensor[:, :, step, :], [-1, 1, self._num_flow]))
+
+                                
+
+                                # for step in range(time_step):
+                                #     outputs = tf.keras.layers.RNN(multi_layer_cell)(tf.reshape(
+                                #         target_tensor[:, :, step, :], [-1, 1, self._num_flow]))
 
 
 
